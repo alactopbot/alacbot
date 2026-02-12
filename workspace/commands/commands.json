@@ -1,0 +1,47 @@
+{
+  "commands": [
+    {
+      "name": "memories",
+      "description": "Show all stored memories",
+      "aliases": ["/memories", "mem"],
+      "handler": "handleMemoryCommand"
+    },
+    {
+      "name": "memory-stats",
+      "description": "Show memory statistics",
+      "aliases": ["/memory-stats", "mem-stats"],
+      "handler": "handleMemoryCommand"
+    },
+    {
+      "name": "memory-search",
+      "description": "Search memories by keyword",
+      "aliases": ["/memory-search", "search-mem"],
+      "parameters": ["query"],
+      "handler": "handleMemoryCommand"
+    },
+    {
+      "name": "forget",
+      "description": "Clear all memories",
+      "aliases": ["/forget", "clear-mem"],
+      "handler": "handleMemoryCommand"
+    },
+    {
+      "name": "export-memory",
+      "description": "Export all memories as markdown",
+      "aliases": ["/export-memory", "export-mem"],
+      "handler": "handleMemoryCommand"
+    },
+    {
+      "name": "add-fact",
+      "description": "Manually add a fact to memory",
+      "aliases": ["/add-fact", "fact"],
+      "parameters": ["content"],
+      "handler": "handleMemoryCommand"
+    }
+  ],
+  "shortcuts": {
+    "/mem": "/memories",
+    "/ms": "/memory-stats",
+    "/f": "/forget"
+  }
+}
