@@ -16,6 +16,8 @@ export class AlacBotGateway {
      */
     async init() {
         console.log("🚀 Initializing AlacBot Gateway...\n");
+        // 初始化用户配置（如果不存在则复制默认配置）
+        await this.workspaceManager.initializeUserConfig();
         // 初始化工作区
         await this.workspaceManager.init();
         // 加载 SOUL.md
