@@ -1,12 +1,11 @@
 import { Agent } from "@mariozechner/pi-agent-core";
-import { getModel } from "@mariozechner/pi-ai";
 import { WorkspaceManager } from "./workspace-manager.js";
 import { SkillsManager } from "./skills-manager.js";
 import { ModelManager } from "./model-manager.js";
 
 /**
  * 第二版扩展 Agent 加载器
- * 支持动态模型切换
+ * 支持动态模型切换和自定义模型
  */
 export class ExtendedAgentLoaderV2 {
   private workspaceManager: WorkspaceManager;
@@ -44,13 +43,13 @@ export class ExtendedAgentLoaderV2 {
    * 加载单个 Agent
    */
   private async loadAgent(agentConfig: any): Promise<void> {
-    const { name, model, modelId, systemPrompt } = agentConfig;
+    const { name, provider, model, systemPrompt } = agentConfig;
 
     // 保存配置供后续使用
     this.agentConfigs.set(name, agentConfig);
 
-    // 创建模型
-    const llmModel = getModel(model, modelId);
+    // 创建模型（支持官方和自定义）
+    const llmModel = await this.modelManager.getOrCreateModel(provider, model);
 
     // 构建增强的系统提示
     const enhancedPrompt = this.buildEnhancedPrompt(systemPrompt, agentConfig);
@@ -66,10 +65,10 @@ export class ExtendedAgentLoaderV2 {
 
     this.agents.set(name, agent);
 
-    const modelName = this.modelManager.getModelConfig(model, modelId)?.name;
+    const modelName = this.modelManager.getModelConfig(provider, model)?.name;
 
     console.log(`  ✓ ${name}`);
-    console.log(`    - Model: ${modelName} (${model}/${modelId})`);
+    console.log(`    - Model: ${modelName} (${provider}/${model})`);
     console.log(`    - Skills: ${agentConfig.skills.join(", ")}\n`);
   }
 
@@ -117,8 +116,8 @@ You can use these skills to accomplish tasks more effectively.`;
 
     try {
       // 更新配置
-      agentConfig.model = providerName;
-      agentConfig.modelId = modelId;
+      agentConfig.provider = providerName;
+      agentConfig.model = modelId;
 
       // 重新加载 Agent
       await this.loadAgent(agentConfig);
@@ -158,6 +157,7 @@ You can use these skills to accomplish tasks more effectively.`;
   }
 
   /**
+  /**
    * 显示所有 Agent 及其当前模型
    */
   displayAgentsWithModels(): string {
@@ -165,11 +165,11 @@ You can use these skills to accomplish tasks more effectively.`;
 
     for (const [name, config] of this.agentConfigs) {
       const modelInfo = this.modelManager.getModelConfig(
-        config.model,
-        config.modelId
+        config.provider,
+        config.model
       );
       output += `**${name}**\n`;
-      output += `  Model: ${modelInfo.name} (${config.model}/${config.modelId})\n`;
+      output += `  Model: ${modelInfo?.name} (${config.provider}/${config.model})\n`;
       output += `  Temperature: ${config.temperature}\n`;
       output += `  Max Tokens: ${config.maxTokens}\n\n`;
     }

@@ -1,9 +1,9 @@
 import { Agent } from "@mariozechner/pi-agent-core";
-import { getModel } from "@mariozechner/pi-ai";
 
 /**
  * 会话管理器
  * 管理单个用户的多轮对话
+ * 注：模型通过 Agent 创建时注入
  */
 export class SessionManager {
   private sessionId: string;
@@ -17,20 +17,19 @@ export class SessionManager {
   private createdAt: number;
   protected lastActivityAt: number;
 
-  constructor(userId: string) {
+  constructor(userId: string, agent?: Agent) {
     this.userId = userId;
     this.sessionId = `session-${userId}-${Date.now()}`;
     this.createdAt = Date.now();
     this.lastActivityAt = Date.now();
 
-    // 为这个会话创建独立的 Agent
-    this.agent = new Agent({
-      initialState: {
-        systemPrompt: this.getSystemPrompt(),
-        model: getModel("anthropic", "claude-sonnet-4-20250514"),
-        messages: [], // 初始为空，后续会添加历史
-      },
-    });
+    // 如果提供了 Agent，使用提供的 Agent；否则会由子类或外部提供
+    if (!agent) {
+      throw new Error(
+        "Agent must be provided to SessionManager constructor"
+      );
+    }
+    this.agent = agent;
   }
 
   /**

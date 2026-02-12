@@ -1,18 +1,17 @@
-import { getProviders } from "@mariozechner/pi-ai";
-import type { KnownProvider } from "@mariozechner/pi-ai";
+import type { Model, Api } from "@mariozechner/pi-ai";
 import { WorkspaceManager } from "./workspace-manager.js";
 
 /**
  * 模型管理器
- * 处理多提供商、多模型的配置和切换
+ * 完全兼容 pi-mono 的模型配置格式
+ * 支持官方模型和自定义模型
  */
 export class ModelManager {
   private workspaceManager: WorkspaceManager;
   private config: any;
-  private readonly knownProviders = new Set<KnownProvider>(getProviders());
-  private currentModel: string = "";
-  private currentProvider: KnownProvider;
-  private modelCache = new Map<string, any>();
+  private currentProvider: string;
+  private currentModel: string;
+  private modelCache = new Map<string, Model<any>>();
   private costTracker = new Map<string, number>();
 
   constructor(workspaceManager: WorkspaceManager) {
@@ -20,11 +19,8 @@ export class ModelManager {
     this.config = workspaceManager.getConfig();
 
     // 设置默认模型
-    this.currentProvider = this.resolveProvider(
-      this.config.modelConfig.defaultProvider,
-      this.getFallbackProvider()
-    );
-    this.currentModel = this.config.modelConfig.default;
+    this.currentProvider = this.config.modelConfig.defaultProvider;
+    this.currentModel = this.config.modelConfig.defaultModel;
   }
 
   /**
@@ -32,7 +28,6 @@ export class ModelManager {
    */
   async init(): Promise<void> {
     console.log("\n🎨 Model Configuration\n");
-
     this.printModelInfo();
     await this.validateModels();
   }
@@ -43,18 +38,17 @@ export class ModelManager {
   private async validateModels(): Promise<void> {
     console.log("\n✓ Available Models:");
 
-    for (const provider of this.config.modelConfig.providers) {
-      const isSupported = this.isKnownProvider(provider.name);
-      const header = isSupported
-        ? `\n  ${provider.name.toUpperCase()}:`
-        : `\n  ⚠ ${provider.name.toUpperCase()} (provider not directly supported)`;
+    const providers = this.config.providers;
+    for (const [providerName, providerConfig] of Object.entries(providers)) {
+      console.log(`\n  ${providerName.toUpperCase()}:`);
 
-      console.log(header);
-
-      for (const model of provider.models) {
-        console.log(
-          `    • ${model.name} (${model.id}) - ${model.contextWindow.toLocaleString()} tokens`
-        );
+      const config = providerConfig as any;
+      if (typeof config === "object" && config.models && Array.isArray(config.models)) {
+        for (const model of config.models) {
+          console.log(
+            `    • ${model.name} (${model.id}) - ${model.contextWindow.toLocaleString()} tokens`
+          );
+        }
       }
     }
 
@@ -65,25 +59,23 @@ export class ModelManager {
    * 打印当前模型信息
    */
   private printModelInfo(): void {
-    const provider = this.getProviderConfig(this.currentProvider);
-    const modelConfig = this.getModelConfig(
-      this.currentProvider,
-      this.currentModel
-    );
+    const modelConfig = this.getModelConfig(this.currentProvider, this.currentModel);
+    if (!modelConfig) {
+      console.warn(`⚠️  Default model not found: ${this.currentProvider}/${this.currentModel}`);
+      return;
+    }
 
     console.log(`Current Model: ${modelConfig.name}`);
-    console.log(`Provider: ${provider.name}`);
+    console.log(`Provider: ${this.currentProvider}`);
     console.log(`Context Window: ${modelConfig.contextWindow.toLocaleString()} tokens`);
-    console.log(`Capabilities: ${modelConfig.capabilities.join(", ")}`);
+    console.log(`Max Tokens: ${modelConfig.maxTokens || "default"}`);
   }
 
   /**
    * 获取提供商配置
    */
   getProviderConfig(providerName: string): any {
-    return this.config.modelConfig.providers.find(
-      (p: any) => p.name === providerName
-    );
+    return this.config.providers?.[providerName] || null;
   }
 
   /**
@@ -91,44 +83,81 @@ export class ModelManager {
    */
   getModelConfig(providerName: string, modelId: string): any {
     const provider = this.getProviderConfig(providerName);
-    if (!provider) return null;
+    if (!provider || !provider.models) return null;
 
     return provider.models.find((m: any) => m.id === modelId);
   }
 
-  private getFallbackProvider(): KnownProvider {
-    const first = this.knownProviders.values().next().value;
-    return (first ?? "anthropic") as KnownProvider;
-  }
+  /**
+   * 获取或创建模型对象
+   * 完全按照 pi-mono 的格式支持
+   */
+  async getOrCreateModel(providerName: string, modelId: string): Promise<Model<any>> {
+    const cacheKey = `${providerName}/${modelId}`;
 
-  private resolveProvider(
-    providerName: string,
-    fallback: KnownProvider
-  ): KnownProvider {
-    if (this.isKnownProvider(providerName)) {
-      return providerName as KnownProvider;
+    if (this.modelCache.has(cacheKey)) {
+      return this.modelCache.get(cacheKey)!;
     }
 
-    return fallback;
-  }
+    const modelConfig = this.getModelConfig(providerName, modelId);
+    if (!modelConfig) {
+      throw new Error(`Model not found: ${providerName}/${modelId}`);
+    }
 
-  private isKnownProvider(name: string): name is KnownProvider {
-    return Boolean(name) && this.knownProviders.has(name as KnownProvider);
+    const providerConfig = this.getProviderConfig(providerName);
+    if (!providerConfig) {
+      throw new Error(`Provider not found: ${providerName}`);
+    }
+
+    // 创建 Model 对象（兼容 pi-ai 的 Model 接口）
+    const model = this.createModelObject(modelConfig, providerConfig, providerName);
+
+    this.modelCache.set(cacheKey, model);
+    return model;
   }
 
   /**
-   * 获取当前模型
+   * 从配置创建 Model 对象
    */
+  private createModelObject(
+    modelConfig: any,
+    providerConfig: any,
+    providerName: string
+  ): Model<any> {
+    return {
+      id: modelConfig.id,
+      name: modelConfig.name,
+      api: providerConfig.api as Api,
+      provider: providerName,
+      baseUrl: providerConfig.baseUrl || "",
+      reasoning: modelConfig.reasoning || false,
+      input: modelConfig.input || ["text"],
+      cost: modelConfig.cost || {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+      },
+      contextWindow: modelConfig.contextWindow || 4096,
+      maxTokens: modelConfig.maxTokens || 2048,
+      headers: providerConfig.headers,
+    };
+  }
+
   /**
    * 获取当前模型信息
    */
   getCurrentModelInfo(): any {
+    const modelConfig = this.getModelConfig(this.currentProvider, this.currentModel);
+    const providerConfig = this.getProviderConfig(this.currentProvider);
+
     return {
       provider: this.currentProvider,
       modelId: this.currentModel,
-      modelName: this.getModelConfig(this.currentProvider, this.currentModel)
-        .name,
-      config: this.getModelConfig(this.currentProvider, this.currentModel),
+      modelName: modelConfig?.name || "Unknown",
+      baseUrl: providerConfig?.baseUrl || "Unknown",
+      api: providerConfig?.api || "Unknown",
+      config: modelConfig,
     };
   }
 
@@ -138,12 +167,14 @@ export class ModelManager {
   listProviders(): string {
     let output = "🏢 Available Providers:\n\n";
 
-    for (const provider of this.config.modelConfig.providers) {
-      const modelCount = provider.models.length;
-      const isDefault = provider.name === this.currentProvider ? "✓ " : "  ";
-      const local = provider.isLocal ? " (Local)" : "";
+    const providers = this.config.providers;
+    for (const [name, config] of Object.entries(providers)) {
+      const isDefault = name === this.currentProvider ? "✓ " : "  ";
+      const modelCount = (config as any).models?.length || 0;
+      const description = (config as any).description || "";
 
-      output += `${isDefault}**${provider.name}**${local}\n`;
+      output += `${isDefault}**${name}**\n`;
+      if (description) output += `   ${description}\n`;
       output += `   Models: ${modelCount}\n\n`;
     }
 
@@ -162,27 +193,27 @@ export class ModelManager {
 
     let output = `📋 Models for ${providerName}:\n\n`;
 
-    provider.models.forEach((model: any, index: number) => {
-      const isCurrent =
-        this.currentProvider === providerName &&
-        this.currentModel === model.id
-          ? "✓ "
-          : "  ";
+    if (provider.models && Array.isArray(provider.models)) {
+      provider.models.forEach((model: any, index: number) => {
+        const isCurrent =
+          this.currentProvider === providerName && this.currentModel === model.id
+            ? "✓ "
+            : "  ";
 
-      output += `${isCurrent}${index + 1}. **${model.name}**\n`;
-      output += `   ID: ${model.id}\n`;
-      output += `   ${model.description}\n`;
-      output += `   Context: ${model.contextWindow.toLocaleString()} tokens\n`;
-      output += `   Capabilities: ${model.capabilities.join(", ")}\n`;
+        output += `${isCurrent}${index + 1}. **${model.name}**\n`;
+        output += `   ID: ${model.id}\n`;
+        output += `   Context: ${model.contextWindow.toLocaleString()} tokens\n`;
+        output += `   Input: ${model.input?.join(", ") || "text"}\n`;
 
-      if (model.costPerMTok.input > 0) {
-        output += `   Cost: $${model.costPerMTok.input}/1M input, $${model.costPerMTok.output}/1M output\n`;
-      } else {
-        output += `   Cost: Free (Local)\n`;
-      }
+        if (model.cost?.input > 0 || model.cost?.output > 0) {
+          output += `   Cost: $${model.cost.input}/1M input, $${model.cost.output}/1M output\n`;
+        } else {
+          output += `   Cost: Free\n`;
+        }
 
-      output += "\n";
-    });
+        output += "\n";
+      });
+    }
 
     return output;
   }
@@ -197,33 +228,33 @@ export class ModelManager {
       return `❌ Provider not found: ${providerName}`;
     }
 
-    const model = provider.models.find((m: any) => m.id === modelId);
+    const model = provider.models?.find((m: any) => m.id === modelId);
 
     if (!model) {
       return `❌ Model not found: ${modelId}`;
     }
 
-    this.currentProvider = this.resolveProvider(
-      providerName,
-      this.currentProvider
-    );
+    this.currentProvider = providerName;
     this.currentModel = modelId;
 
-    return `✅ Switched to ${model.name} (${providerName}/${modelId})\n\nContext Window: ${model.contextWindow.toLocaleString()} tokens\nCapabilities: ${model.capabilities.join(", ")}`;
+    return `✅ Switched to ${model.name} (${providerName}/${modelId})\n\nContext Window: ${model.contextWindow.toLocaleString()} tokens\nInput: ${model.input?.join(", ") || "text"}`;
   }
 
   /**
    * 快速切换模型
    */
   quickSwitchModel(input: string): string {
-    // 尝试直接匹配模型名称或ID
-    for (const provider of this.config.modelConfig.providers) {
+    const providers = this.config.providers;
+    for (const [providerName, providerConfig] of Object.entries(providers)) {
+      const provider = providerConfig as any;
+      if (!provider.models) continue;
+
       for (const model of provider.models) {
         if (
           model.id.toLowerCase() === input.toLowerCase() ||
           model.name.toLowerCase().includes(input.toLowerCase())
         ) {
-          return this.switchModel(provider.name, model.id);
+          return this.switchModel(providerName, model.id);
         }
       }
     }
@@ -235,15 +266,12 @@ export class ModelManager {
    * 获取模型成本信息
    */
   getModelCost(tokens: number = 1000): any {
-    const modelConfig = this.getModelConfig(
-      this.currentProvider,
-      this.currentModel
-    );
+    const modelConfig = this.getModelConfig(this.currentProvider, this.currentModel);
 
-    if (!modelConfig) return null;
+    if (!modelConfig || !modelConfig.cost) return null;
 
-    const inputCost = (modelConfig.costPerMTok.input / 1000000) * tokens;
-    const outputCost = (modelConfig.costPerMTok.output / 1000000) * tokens;
+    const inputCost = (modelConfig.cost.input / 1000000) * tokens;
+    const outputCost = (modelConfig.cost.output / 1000000) * tokens;
 
     return {
       inputCost,
@@ -258,10 +286,10 @@ export class ModelManager {
   trackUsage(provider: string, modelId: string, inputTokens: number, outputTokens: number): void {
     const modelConfig = this.getModelConfig(provider, modelId);
 
-    if (!modelConfig) return;
+    if (!modelConfig || !modelConfig.cost) return;
 
-    const inputCost = (modelConfig.costPerMTok.input / 1000000) * inputTokens;
-    const outputCost = (modelConfig.costPerMTok.output / 1000000) * outputTokens;
+    const inputCost = (modelConfig.cost.input / 1000000) * inputTokens;
+    const outputCost = (modelConfig.cost.output / 1000000) * outputTokens;
     const totalCost = inputCost + outputCost;
 
     const key = `${provider}/${modelId}`;
@@ -296,21 +324,24 @@ export class ModelManager {
   generateReport(): string {
     let output = "📊 Model Configuration Report\n\n";
 
-    output += `Current Model: ${this.getCurrentModelInfo().modelName}\n`;
+    const current = this.getCurrentModelInfo();
+    output += `Current Model: ${current.modelName}\n`;
     output += `Provider: ${this.currentProvider}\n\n`;
 
-    output += `Total Providers: ${this.config.modelConfig.providers.length}\n`;
+    const providers = this.config.providers;
+    output += `Total Providers: ${Object.keys(providers).length}\n`;
 
     let totalModels = 0;
-    for (const provider of this.config.modelConfig.providers) {
-      totalModels += provider.models.length;
+    for (const provider of Object.values(providers)) {
+      totalModels += (provider as any).models?.length || 0;
     }
 
     output += `Total Models: ${totalModels}\n\n`;
 
     output += "Provider Breakdown:\n";
-    for (const provider of this.config.modelConfig.providers) {
-      output += `  - ${provider.name}: ${provider.models.length} models\n`;
+    for (const [providerName, providerConfig] of Object.entries(providers)) {
+      const config = providerConfig as any;
+      output += `  - ${providerName}: ${config.models?.length || 0} models\n`;
     }
 
     return output;
