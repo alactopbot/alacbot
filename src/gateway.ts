@@ -1,5 +1,5 @@
 /**
- * OpenClaw 网关
+ * AlacBot 网关
  * 连接多个适配器和 pi-mono Agent
  */
 
@@ -7,7 +7,7 @@ import { Agent } from "@mariozechner/pi-agent-core";
 import { getModel } from "@mariozechner/pi-ai";
 import type { PlatformAdapter, Message } from "./adapters/base.js";
 
-export class OpenClawGateway {
+export class AlacBotGateway {
   private agent: Agent;
   private adapters: Map<string, PlatformAdapter> = new Map();
   private sessions: Map<string, any> = new Map();
@@ -90,7 +90,7 @@ export class OpenClawGateway {
    * 启动所有适配器
    */
   async start(): Promise<void> {
-    console.log("🦞 OpenClaw Gateway Starting...\n");
+    console.log("🦞 AlacBot Gateway Starting...\n");
 
     for (const adapter of this.adapters.values()) {
       await adapter.start();

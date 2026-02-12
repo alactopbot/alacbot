@@ -1,10 +1,10 @@
-import { OpenClawGateway } from "./openclaw-multi-turn.js";
+import { AlacBotGateway } from "./alacbot-multi-turn.js";
 
 async function testMultiTurnConversation() {
-  const gateway = new OpenClawGateway();
+  const gateway = new AlacBotGateway();
 
   console.log("=" .repeat(60));
-  console.log("🦞 Multi-Turn Conversation Test");
+  console.log("🦞 Multi-Turn Conversation Test - AlacBot");
   console.log("=".repeat(60));
 
   // 模拟用户 A 的对话

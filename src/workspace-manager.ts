@@ -13,7 +13,7 @@ export class WorkspaceManager {
 
   constructor(workspaceDir: string = "./workspace") {
     this.workspaceDir = workspaceDir;
-    this.configPath = path.join(workspaceDir, "openclaw.config.json");
+    this.configPath = path.join(workspaceDir, "alacbot.config.json");
     this.sessionDir = path.join(workspaceDir, "sessions");
   }
 

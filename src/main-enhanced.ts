@@ -1,10 +1,10 @@
 import * as readline from "readline";
-import { OpenClawGatewayEnhanced } from "./openclaw-gateway-enhanced.js";
+import { AlacBotGatewayEnhanced } from "./alacbot-gateway-enhanced.js";
 
 async function main() {
   try {
     const userId = "user1";
-    const gateway = new OpenClawGatewayEnhanced("./workspace", userId);
+    const gateway = new AlacBotGatewayEnhanced("./workspace", userId);
 
     await gateway.init();
     gateway.displayWelcome();
@@ -16,7 +16,7 @@ async function main() {
 }
 
 async function startInteractiveSession(
-  gateway: OpenClawGatewayEnhanced
+  gateway: AlacBotGatewayEnhanced
 ): Promise<void> {
   const rl = readline.createInterface({
     input: process.stdin,

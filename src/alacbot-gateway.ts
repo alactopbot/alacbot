@@ -3,10 +3,10 @@ import { AgentLoader } from "./agent-loader.js";
 import { PersistentSessionStore } from "./persistent-session-store.js";
 
 /**
- * OpenClaw 网关（完整版）
+ * AlacBot 网关（完整版）
  * 支持配置驱动、多Agent、持久化
  */
-export class OpenClawGateway {
+export class AlacBotGateway {
   private workspaceManager: WorkspaceManager;
   private agentLoader: AgentLoader;
   private sessionStore: PersistentSessionStore;
@@ -21,7 +21,7 @@ export class OpenClawGateway {
    * 初始化网关
    */
   async init(): Promise<void> {
-    console.log("🚀 Initializing OpenClaw Gateway...\n");
+    console.log("🚀 Initializing AlacBot Gateway...\n");
 
     // 初始化工作区
     await this.workspaceManager.init();
@@ -37,7 +37,7 @@ export class OpenClawGateway {
     // 加载所有 Agent
     await this.agentLoader.loadAgents();
 
-    console.log("✅ OpenClaw Gateway initialized!\n");
+    console.log("✅ AlacBot Gateway initialized!\n");
   }
 
   /**
@@ -92,7 +92,7 @@ export class OpenClawGateway {
    */
   async displayInfo(): Promise<void> {
     console.log("=" .repeat(60));
-    console.log("🦞 OpenClaw Gateway Information");
+    console.log("🦞 AlacBot Gateway Information");
     console.log("=".repeat(60));
 
     const config = this.workspaceManager.getConfig();

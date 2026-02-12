@@ -1,8 +1,8 @@
-import { OpenClawGateway } from "./gateway.js";
+import { AlacBotGateway } from "./gateway.js";
 import { CLIAdapter } from "./adapters/cli-adapter.js";
 
 async function main() {
-  const gateway = new OpenClawGateway();
+  const gateway = new AlacBotGateway();
 
   // 注册 CLI 适配器
   const cliAdapter = new CLIAdapter();

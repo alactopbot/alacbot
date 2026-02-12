@@ -1,9 +1,9 @@
 import { SessionStore } from "./session-store.js";
 
 /**
- * OpenClaw 网关（支持多轮对话）
+ * AlacBot 网关（支持多轮对话）
  */
-export class OpenClawGateway {
+export class AlacBotGateway {
   private sessionStore = new SessionStore();
 
   /**

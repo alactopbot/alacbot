@@ -1,0 +1,82 @@
+{
+  "workspaceName": "alacbot",
+  "version": "1.0.0",
+  "description": "Multi-Agent AI System with Model Configuration",
+  "storage": {
+    "type": "markdown",
+    "sessionDir": "./sessions",
+    "configDir": "."
+  },
+  "modelConfig": {
+    "default": "claude-sonnet-4-20250514",
+    "defaultProvider": "anthropic",
+    "providers": [
+      {
+        "name": "anthropic",
+        "apiKeyEnv": "ANTHROPIC_API_KEY",
+        "baseUrl": "https://api.anthropic.com",
+        "models": [
+          {
+            "id": "claude-opus-4-1",
+            "name": "Claude 3 Opus",
+            "description": "Most capable model for complex tasks",
+            "contextWindow": 200000,
+            "costPerMTok": {
+              "input": 15,
+              "output": 75
+            },
+            "capabilities": ["vision", "tool_use", "thinking"]
+          },
+          {
+            "id": "claude-sonnet-4-20250514",
+            "name": "Claude 3.5 Sonnet",
+            "description": "Balanced model for general tasks",
+            "contextWindow": 200000,
+            "costPerMTok": {
+              "input": 3,
+              "output": 15
+            },
+            "capabilities": ["vision", "tool_use"]
+          },
+          {
+            "id": "claude-haiku-3-5",
+            "name": "Claude 3.5 Haiku",
+            "description": "Fastest and most compact model",
+            "contextWindow": 200000,
+            "costPerMTok": {
+              "input": 0.8,
+              "output": 4
+            },
+            "capabilities": ["tool_use"]
+          }
+        ]
+      }
+    ]
+  },
+  "agents": [
+    {
+      "name": "MainAgent",
+      "enabled": true,
+      "model": "anthropic",
+      "modelId": "claude-sonnet-4-20250514",
+      "temperature": 0.7,
+      "maxTokens": 2000,
+      "skills": ["conversation", "reasoning", "context_management"],
+      "description": "Main conversational agent"
+    }
+  ],
+  "features": {
+    "multiTurn": true,
+    "sessionPersistence": true,
+    "markdownStorage": true,
+    "agentRouting": true,
+    "modelSwitching": true,
+    "costTracking": true
+  },
+  "defaults": {
+    "sessionTimeout": 3600,
+    "maxHistoryLength": 100,
+    "autoSave": true,
+    "autosaveInterval": 30000
+  }
+}
