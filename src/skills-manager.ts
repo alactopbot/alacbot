@@ -27,20 +27,20 @@ export class SkillsManager {
    * 加载内置 Skills
    */
   private async loadBuiltInSkills(): Promise<void> {
-    try {
-      // 动态导入内置 Skills
-      const fileReaderModule = await import("../workspace/skills/file-reader.js");
-      const webScraperModule = await import("../workspace/skills/web-scraper.js");
-      const calculatorModule = await import("../workspace/skills/calculator.js");
+    const builtInFiles = [
+      "file-reader.js",
+      "web-scraper.js",
+      "calculator.js",
+    ];
 
-      this.registerSkill(fileReaderModule.fileReaderSkill);
-      this.registerSkill(webScraperModule.webScraperSkill);
-      this.registerSkill(calculatorModule.calculatorSkill);
+    await fs.mkdir(this.skillsDir, { recursive: true });
 
-      console.log("✓ Built-in skills loaded (3)");
-    } catch (err) {
-      console.log("⚠ Some built-in skills failed to load");
+    for (const fileName of builtInFiles) {
+      const skillPath = path.join(this.skillsDir, fileName);
+      await this.loadSkillFromFile(skillPath);
     }
+
+    console.log("✓ Built-in skills loaded (attempted 3)");
   }
 
   /**

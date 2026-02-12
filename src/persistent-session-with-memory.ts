@@ -12,7 +12,7 @@ export class PersistentSessionWithMemory extends SessionManager {
   private memoryManager: MemoryManager;
   private conversationAnalyzer: ConversationAnalyzer;
   private sessionPath: string;
-  private autosaveInterval: NodeJS.Timer | null = null;
+  private autosaveInterval: NodeJS.Timeout | null = null;
 
   constructor(
     userId: string,
@@ -80,7 +80,7 @@ export class PersistentSessionWithMemory extends SessionManager {
           assistantResponse += delta;
         }
 
-        if (event.type === "message_end" && event.assistantMessageEvent) {
+        if (event.type === "message_end") {
           console.log("\n");
 
           // 5. 保存助手响应
@@ -224,21 +224,4 @@ When responding, please:
     return markdown;
   }
 
-  private get userId(): string {
-    return this.getInfo().userId;
-  }
-
-  private get lastActivityAt(): number {
-    return this.getInfo().lastActivityAt;
-  }
-
-  private set lastActivityAt(value: number) {
-    // 由于继承限制，这里做个简单处理
-    const info = this.getInfo();
-    info.lastActivityAt = value;
-  }
-
-  private getHistory() {
-    return this.getInfo().history as any[];
-  }
 }

@@ -7,15 +7,15 @@ import { getModel } from "@mariozechner/pi-ai";
  */
 export class SessionManager {
   private sessionId: string;
-  private userId: string;
-  private agent: Agent;
+  protected userId: string;
+  protected agent: Agent;
   private conversationHistory: Array<{
     role: "user" | "assistant";
     content: string;
     timestamp: number;
   }> = [];
   private createdAt: number;
-  private lastActivityAt: number;
+  protected lastActivityAt: number;
 
   constructor(userId: string) {
     this.userId = userId;
@@ -61,9 +61,8 @@ Be concise and helpful.`;
     // 2. 构建消息列表（包含所有历史）
     const messagesList = this.buildMessagesList();
 
-    // 3. 更新 Agent 的消息列表
-    // 这样 Agent 就能看到完整对话历史
-    this.agent.initialState.messages = messagesList;
+    // 3. 更新 Agent 的消息列表（使用代理提供的 API）
+    this.agent.replaceMessages(messagesList);
 
     // 4. 使用 Agent 处理消息
     let assistantResponse = "";
@@ -81,10 +80,7 @@ Be concise and helpful.`;
         }
 
         // 消息完成时
-        if (
-          event.type === "message_end" &&
-          event.assistantMessageEvent
-        ) {
+        if (event.type === "message_end") {
           console.log("\n");
 
           // 5. 保存助手响应到历史

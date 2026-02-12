@@ -9,7 +9,7 @@ export class MemoryCommandHandler extends CommandHandlerEnhanced {
 
   constructor(
     memoryManager: MemoryManager,
-    ...args: any[]
+    ...args: ConstructorParameters<typeof CommandHandlerEnhanced>
   ) {
     super(...args);
     this.memoryManager = memoryManager;

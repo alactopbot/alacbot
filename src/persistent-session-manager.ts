@@ -9,7 +9,7 @@ import { WorkspaceManager } from "./workspace-manager.js";
 export class PersistentSessionManager extends SessionManager {
   private workspaceManager: WorkspaceManager;
   private sessionPath: string;
-  private autosaveInterval: NodeJS.Timer | null = null;
+  private autosaveInterval: NodeJS.Timeout | null = null;
 
   constructor(
     userId: string,

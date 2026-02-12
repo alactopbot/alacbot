@@ -1,4 +1,5 @@
-import { getModel } from "@mariozechner/pi-ai";
+import { getProviders } from "@mariozechner/pi-ai";
+import type { KnownProvider } from "@mariozechner/pi-ai";
 import { WorkspaceManager } from "./workspace-manager.js";
 
 /**
@@ -8,8 +9,9 @@ import { WorkspaceManager } from "./workspace-manager.js";
 export class ModelManager {
   private workspaceManager: WorkspaceManager;
   private config: any;
+  private readonly knownProviders = new Set<KnownProvider>(getProviders());
   private currentModel: string = "";
-  private currentProvider: string = "";
+  private currentProvider: KnownProvider;
   private modelCache = new Map<string, any>();
   private costTracker = new Map<string, number>();
 
@@ -18,7 +20,10 @@ export class ModelManager {
     this.config = workspaceManager.getConfig();
 
     // 设置默认模型
-    this.currentProvider = this.config.modelConfig.defaultProvider;
+    this.currentProvider = this.resolveProvider(
+      this.config.modelConfig.defaultProvider,
+      this.getFallbackProvider()
+    );
     this.currentModel = this.config.modelConfig.default;
   }
 
@@ -39,16 +44,17 @@ export class ModelManager {
     console.log("\n✓ Available Models:");
 
     for (const provider of this.config.modelConfig.providers) {
-      console.log(`\n  ${provider.name.toUpperCase()}:`);
+      const isSupported = this.isKnownProvider(provider.name);
+      const header = isSupported
+        ? `\n  ${provider.name.toUpperCase()}:`
+        : `\n  ⚠ ${provider.name.toUpperCase()} (provider not directly supported)`;
+
+      console.log(header);
 
       for (const model of provider.models) {
-        try {
-          // 尝试加载模型
-          const llmModel = getModel(provider.name, model.id);
-          console.log(`    ✓ ${model.name} (${model.id})`);
-        } catch (err) {
-          console.log(`    ✗ ${model.name} (${model.id}) - Not available`);
-        }
+        console.log(
+          `    • ${model.name} (${model.id}) - ${model.contextWindow.toLocaleString()} tokens`
+        );
       }
     }
 
@@ -90,13 +96,29 @@ export class ModelManager {
     return provider.models.find((m: any) => m.id === modelId);
   }
 
+  private getFallbackProvider(): KnownProvider {
+    const first = this.knownProviders.values().next().value;
+    return (first ?? "anthropic") as KnownProvider;
+  }
+
+  private resolveProvider(
+    providerName: string,
+    fallback: KnownProvider
+  ): KnownProvider {
+    if (this.isKnownProvider(providerName)) {
+      return providerName as KnownProvider;
+    }
+
+    return fallback;
+  }
+
+  private isKnownProvider(name: string): name is KnownProvider {
+    return Boolean(name) && this.knownProviders.has(name as KnownProvider);
+  }
+
   /**
    * 获取当前模型
    */
-  getCurrentModel(): any {
-    return getModel(this.currentProvider, this.currentModel);
-  }
-
   /**
    * 获取当前模型信息
    */
@@ -181,7 +203,10 @@ export class ModelManager {
       return `❌ Model not found: ${modelId}`;
     }
 
-    this.currentProvider = providerName;
+    this.currentProvider = this.resolveProvider(
+      providerName,
+      this.currentProvider
+    );
     this.currentModel = modelId;
 
     return `✅ Switched to ${model.name} (${providerName}/${modelId})\n\nContext Window: ${model.contextWindow.toLocaleString()} tokens\nCapabilities: ${model.capabilities.join(", ")}`;

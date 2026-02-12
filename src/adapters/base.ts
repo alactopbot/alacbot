@@ -13,7 +13,11 @@ export interface Message {
 
 export interface PlatformAdapter {
   name: string;
-  
+  /**
+   * 注册消息处理器
+   */
+  setOnMessage(handler: (message: Message) => Promise<string>): void;
+
   // 处理来自平台的消息
   onMessage(message: Message): Promise<string>;
   
