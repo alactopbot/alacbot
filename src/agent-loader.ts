@@ -1,17 +1,19 @@
 import { Agent } from "@mariozechner/pi-agent-core";
-import { getModel } from "@mariozechner/pi-ai";
 import { WorkspaceManager } from "./workspace-manager.js";
+import { ModelManager } from "./model-manager.js";
 
 /**
  * Agent 加载器
- * 根据配置动态创建Agent
+ * 根据配置动态创建Agent，支持自定义模型配置
  */
 export class AgentLoader {
   private workspaceManager: WorkspaceManager;
+  private modelManager: ModelManager;
   private agents = new Map<string, Agent>();
 
   constructor(workspaceManager: WorkspaceManager) {
     this.workspaceManager = workspaceManager;
+    this.modelManager = new ModelManager(workspaceManager);
   }
 
   /**
@@ -21,6 +23,8 @@ export class AgentLoader {
     const enabledAgents = this.workspaceManager.getEnabledAgents();
 
     console.log(`\n🤖 Loading ${enabledAgents.length} agents...\n`);
+
+    await this.modelManager.init();
 
     for (const agentConfig of enabledAgents) {
       await this.loadAgent(agentConfig);
@@ -33,11 +37,11 @@ export class AgentLoader {
    * 加载单个 Agent
    */
   private async loadAgent(agentConfig: any): Promise<void> {
-    const { name, model, modelId, systemPrompt, temperature, maxTokens } =
+    const { name, provider, model, systemPrompt, temperature, maxTokens } =
       agentConfig;
 
-    // 创建模型
-    const llmModel = getModel(model, modelId);
+    // 从 ModelManager 获取或创建模型
+    const llmModel = await this.modelManager.getOrCreateModel(provider, model);
 
     // 创建 Agent
     const agent = new Agent({
@@ -50,8 +54,10 @@ export class AgentLoader {
 
     this.agents.set(name, agent);
 
+    const modelConfig = this.modelManager.getModelConfig(provider, model);
+
     console.log(`  ✓ ${name}`);
-    console.log(`    - Model: ${modelId}`);
+    console.log(`    - Model: ${modelConfig?.name} (${provider}/${model})`);
     console.log(`    - Temperature: ${temperature}`);
     console.log(`    - Max Tokens: ${maxTokens}\n`);
   }

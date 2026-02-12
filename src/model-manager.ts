@@ -16,17 +16,21 @@ export class ModelManager {
 
   constructor(workspaceManager: WorkspaceManager) {
     this.workspaceManager = workspaceManager;
-    this.config = workspaceManager.getConfig();
-
-    // 设置默认模型
-    this.currentProvider = this.config.modelConfig.defaultProvider;
-    this.currentModel = this.config.modelConfig.defaultModel;
+    this.config = null;
+    this.currentProvider = "";
+    this.currentModel = "";
   }
 
   /**
    * 初始化模型管理器
    */
   async init(): Promise<void> {
+    if (!this.config) {
+      this.config = this.workspaceManager.getConfig();
+      this.currentProvider = this.config.modelConfig.defaultProvider;
+      this.currentModel = this.config.modelConfig.defaultModel;
+    }
+
     console.log("\n🎨 Model Configuration\n");
     this.printModelInfo();
     await this.validateModels();
@@ -93,6 +97,13 @@ export class ModelManager {
    * 完全按照 pi-mono 的格式支持
    */
   async getOrCreateModel(providerName: string, modelId: string): Promise<Model<any>> {
+    // 确保 config 已初始化
+    if (!this.config) {
+      this.config = this.workspaceManager.getConfig();
+      this.currentProvider = this.config.modelConfig.defaultProvider;
+      this.currentModel = this.config.modelConfig.defaultModel;
+    }
+
     const cacheKey = `${providerName}/${modelId}`;
 
     if (this.modelCache.has(cacheKey)) {
@@ -124,11 +135,25 @@ export class ModelManager {
     providerConfig: any,
     providerName: string
   ): Model<any> {
-    return {
+    // 获取 API key - 优先使用明文配置，否则从环境变量读取
+    const apiKey = this.getApiKey(providerConfig);
+
+    // 对于 OpenAI 兼容的 API，使用 "openai" 作为 provider 名称
+    // 这样 pi-ai 能从 OPENAI_API_KEY 环境变量读取密钥
+    let provider = providerName;
+    if (
+      (providerConfig.api === "openai-completions" ||
+        providerConfig.api === "openai-responses") &&
+      providerName !== "openai"
+    ) {
+      provider = "openai";
+    }
+
+    const model: any = {
       id: modelConfig.id,
       name: modelConfig.name,
       api: providerConfig.api as Api,
-      provider: providerName,
+      provider: provider,
       baseUrl: providerConfig.baseUrl || "",
       reasoning: modelConfig.reasoning || false,
       input: modelConfig.input || ["text"],
@@ -141,7 +166,29 @@ export class ModelManager {
       contextWindow: modelConfig.contextWindow || 4096,
       maxTokens: modelConfig.maxTokens || 2048,
       headers: providerConfig.headers,
+      // 添加 apiKey - pi-ai 需要这个字段来认证 API 请求
+      apiKey: apiKey,
     };
+
+    return model as Model<any>;
+  }
+
+  /**
+   * 获取 API Key
+   * 优先使用配置中的明文 apiKey，否则从环境变量读取
+   */
+  private getApiKey(providerConfig: any): string | undefined {
+    // 1. 优先使用配置中的明文 apiKey
+    if (providerConfig.apiKey) {
+      return providerConfig.apiKey;
+    }
+
+    // 2. 从环境变量读取
+    if (providerConfig.apiKeyEnv) {
+      return process.env[providerConfig.apiKeyEnv];
+    }
+
+    return undefined;
   }
 
   /**

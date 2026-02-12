@@ -70,7 +70,7 @@ export class PersistentSessionWithMemory extends SessionManager {
 
     return new Promise((resolve) => {
       // 使用父类的 agent 处理（会看到增强的系统提示）
-      this.agent.subscribe((event) => {
+      this.agent!.subscribe((event) => {
         if (
           event.type === "message_update" &&
           event.assistantMessageEvent?.type === "text_delta"
@@ -110,7 +110,7 @@ export class PersistentSessionWithMemory extends SessionManager {
         }
       });
 
-      this.agent.prompt(userMessage).catch((err) => {
+      this.agent!.prompt(userMessage).catch((err) => {
         console.error("Agent error:", err);
         assistantResponse = "Sorry, I encountered an error.";
         this.getHistory().push({

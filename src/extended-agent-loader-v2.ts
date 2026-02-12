@@ -51,6 +51,9 @@ export class ExtendedAgentLoaderV2 {
     // 创建模型（支持官方和自定义）
     const llmModel = await this.modelManager.getOrCreateModel(provider, model);
 
+    console.log(`\n📝 Creating Agent: ${name}`);
+    console.log(`   Model: ${JSON.stringify(llmModel, null, 2)}`);
+
     // 构建增强的系统提示
     const enhancedPrompt = this.buildEnhancedPrompt(systemPrompt, agentConfig);
 

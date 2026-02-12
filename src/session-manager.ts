@@ -8,7 +8,7 @@ import { Agent } from "@mariozechner/pi-agent-core";
 export class SessionManager {
   private sessionId: string;
   protected userId: string;
-  protected agent: Agent;
+  protected agent?: Agent;
   private conversationHistory: Array<{
     role: "user" | "assistant";
     content: string;
@@ -23,13 +23,10 @@ export class SessionManager {
     this.createdAt = Date.now();
     this.lastActivityAt = Date.now();
 
-    // 如果提供了 Agent，使用提供的 Agent；否则会由子类或外部提供
-    if (!agent) {
-      throw new Error(
-        "Agent must be provided to SessionManager constructor"
-      );
+    // Agent 可以在创建时提供，也可以在后续 chat() 时设置
+    if (agent) {
+      this.agent = agent;
     }
-    this.agent = agent;
   }
 
   /**
@@ -46,7 +43,16 @@ Be concise and helpful.`;
    * 发送消息并获取响应
    * 这是处理多轮对话的关键方法
    */
-  async chat(userMessage: string): Promise<string> {
+  async chat(userMessage: string, agent?: Agent): Promise<string> {
+    // 如果提供了 agent，使用提供的；否则使用之前设置的
+    if (agent) {
+      this.agent = agent;
+    }
+
+    if (!this.agent) {
+      throw new Error("Agent must be set before calling chat()");
+    }
+
     console.log(`\n[Round ${this.conversationHistory.length / 2 + 1}]`);
     console.log(`User: ${userMessage}`);
 
@@ -61,13 +67,13 @@ Be concise and helpful.`;
     const messagesList = this.buildMessagesList();
 
     // 3. 更新 Agent 的消息列表（使用代理提供的 API）
-    this.agent.replaceMessages(messagesList);
+    this.agent!.replaceMessages(messagesList);
 
     // 4. 使用 Agent 处理消息
     let assistantResponse = "";
 
     return new Promise((resolve) => {
-      this.agent.subscribe((event) => {
+      this.agent!.subscribe((event) => {
         // 处理流式输出
         if (
           event.type === "message_update" &&
@@ -98,7 +104,7 @@ Be concise and helpful.`;
       });
 
       // 发送用户消息给 agent
-      this.agent.prompt(userMessage).catch((err) => {
+      this.agent!.prompt(userMessage).catch((err) => {
         console.error("Agent error:", err);
         assistantResponse = "Sorry, I encountered an error.";
         this.conversationHistory.push({
