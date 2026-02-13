@@ -23,10 +23,7 @@ export class AlacBotGateway {
   async init(): Promise<void> {
     console.log("🚀 Initializing AlacBot Gateway...\n");
 
-    // 初始化用户配置（如果不存在则复制默认配置）
-    await this.workspaceManager.initializeUserConfig();
-
-    // 初始化工作区
+    // 初始化工作区（从模板复制，加载配置）
     await this.workspaceManager.init();
 
     // 从配置中加载 API keys 到环境变量
@@ -147,6 +144,13 @@ export class AlacBotGateway {
    */
   async saveAllSessions(): Promise<void> {
     await this.sessionStore.saveAll();
+  }
+
+  /**
+   * 获取运行时工作目录路径
+   */
+  getWorkspaceDir(): string {
+    return this.workspaceManager.getWorkspaceDir();
   }
 
   /**

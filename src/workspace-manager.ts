@@ -5,75 +5,149 @@ import * as os from "os";
 /**
  * 工作区管理器
  * 处理配置加载、会话存储等
- * 支持从 ~/.alacbot.config.json 读取用户配置
+ * 
+ * 简化设计：
+ * - 默认工作目录固定为 ~/alacbot
+ * - 配置文件在 {工作目录}/alacbot.config.json
+ * - 配置文件中可指定 workspace 字段切换工作目录
+ * - 首次或切换工作目录时从模板复制
  */
 export class WorkspaceManager {
-  private workspaceDir: string;
+  private templateDir: string; // 项目内的模板目录
+  private actualWorkspaceDir: string; // 实际工作目录（如 ~/alacbot）
   private configPath: string;
   private config: any;
   private sessionDir: string;
+  private static readonly DEFAULT_WORKSPACE = path.join(os.homedir(), "alacbot");
 
-  constructor(workspaceDir: string = "./workspace") {
-    this.workspaceDir = workspaceDir;
-    // 优先使用用户主目录的配置，其次使用工作区目录的配置
-    const userConfigPath = path.join(os.homedir(), ".alacbot.config.json");
-    const workspaceConfigPath = path.join(workspaceDir, "alacbot.config.json");
-    this.configPath = userConfigPath;
-    this.sessionDir = path.join(workspaceDir, "sessions");
+  constructor(projectWorkspaceDir: string = "./workspace") {
+    // projectWorkspaceDir 是项目内的模板目录
+    this.templateDir = projectWorkspaceDir;
+    // 这些会在 init() 中初始化为实际工作目录
+    this.actualWorkspaceDir = "";
+    this.configPath = "";
+    this.sessionDir = "";
   }
 
   /**
-   * 初始化工作区
+   * 初始化工作区：
+   * 1. 使用默认工作目录 ~/alacbot
+   * 2. 如果不存在则从模板复制
+   * 3. 加载配置文件
+   * 4. 如果配置中指定了 workspace，切换到新工作目录
    */
   async init(): Promise<void> {
-    // 创建目录
-    await fs.mkdir(this.workspaceDir, { recursive: true });
-    await fs.mkdir(this.sessionDir, { recursive: true });
-
-    // 加载配置
+    // 1. 从默认工作目录开始
+    this.actualWorkspaceDir = WorkspaceManager.DEFAULT_WORKSPACE;
+    this.configPath = path.join(this.actualWorkspaceDir, "alacbot.config.json");
+    
+    // 2. 初始化默认工作目录（如果不存在则复制模板）
+    await this.initializeWorkspaceDirectory(this.actualWorkspaceDir);
+    
+    // 3. 加载配置
     await this.loadConfig();
+
+    // 4. 检查是否需要切换工作目录
+    const configuredWorkspace = this.config?.workspace;
+    if (configuredWorkspace && configuredWorkspace !== this.actualWorkspaceDir) {
+      const expandedWorkspace = this.expandPath(configuredWorkspace);
+      
+      if (expandedWorkspace !== this.actualWorkspaceDir) {
+        console.log(`📁 Switching workspace to: ${expandedWorkspace}`);
+        
+        // 初始化新工作目录（如果不存在）
+        await this.initializeWorkspaceDirectory(expandedWorkspace);
+        
+        // 切换到新工作目录
+        this.actualWorkspaceDir = expandedWorkspace;
+        this.configPath = path.join(this.actualWorkspaceDir, "alacbot.config.json");
+        this.sessionDir = path.join(this.actualWorkspaceDir, "sessions");
+        
+        // 重新加载新工作目录的配置
+        await this.loadConfig();
+      }
+    }
+
+    // 5. 设置会话目录
+    this.sessionDir = path.join(this.actualWorkspaceDir, "sessions");
+    await fs.mkdir(this.sessionDir, { recursive: true });
 
     console.log("✅ Workspace initialized");
   }
 
   /**
-   * 加载配置文件
-   * 优先从 ~/.alacbot.config.json 读取，如果不存在则使用工作区默认配置
+   * 路径扩展（支持 ~）
    */
-  async loadConfig(): Promise<void> {
-    const userConfigPath = path.join(os.homedir(), ".alacbot.config.json");
-    const workspaceConfigPath = path.join(
-      this.workspaceDir,
-      "alacbot.config.json"
-    );
+  private expandPath(pathStr: string): string {
+    if (pathStr.startsWith("~")) {
+      return pathStr.replace("~", os.homedir());
+    }
+    return path.resolve(pathStr);
+  }
 
-    let configContent: string;
-    let configSource: string;
-
+  /**
+   * 初始化工作目录：如果不存在则从项目模板复制所有文件
+   */
+  private async initializeWorkspaceDirectory(
+    workspaceDir: string
+  ): Promise<void> {
     try {
-      // 尝试读取用户配置
-      configContent = await fs.readFile(userConfigPath, "utf-8");
-      configSource = `~/.alacbot.config.json`;
-    } catch (_) {
-      try {
-        // 回退到工作区配置
-        configContent = await fs.readFile(workspaceConfigPath, "utf-8");
-        configSource = `workspace/alacbot.config.json`;
-      } catch (err) {
-        console.error(
-          `❌ Failed to load config from both locations:\n  - ${userConfigPath}\n  - ${workspaceConfigPath}`
-        );
-        throw err;
+      // 检查工作目录是否存在
+      await fs.access(workspaceDir);
+      console.log(`ℹ️  Workspace directory already exists`);
+      return;
+    } catch {
+      // 目录不存在，从模板复制
+      console.log(`📦 Initializing workspace from template...`);
+      
+      await fs.mkdir(workspaceDir, { recursive: true });
+      
+      // 递归复制模板目录中的所有文件
+      await this.copyDirRecursive(this.templateDir, workspaceDir);
+      
+      console.log(`✅ Workspace initialized with template files`);
+    }
+  }
+
+  /**
+   * 递归复制目录
+   */
+  private async copyDirRecursive(src: string, dest: string): Promise<void> {
+    const entries = await fs.readdir(src, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      // 跳过 node_modules 等不需要复制的目录
+      if (entry.name.startsWith(".") || entry.name === "node_modules") {
+        continue;
+      }
+      
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+      
+      if (entry.isDirectory()) {
+        await fs.mkdir(destPath, { recursive: true });
+        await this.copyDirRecursive(srcPath, destPath);
+      } else {
+        await fs.copyFile(srcPath, destPath);
       }
     }
+  }
 
+  /**
+   * 加载配置文件
+   * 从工作目录的 alacbot.config.json 读取
+   */
+  async loadConfig(): Promise<void> {
     try {
+      const configContent = await fs.readFile(this.configPath, "utf-8");
       this.config = JSON.parse(configContent);
       console.log(
-        `✅ Config loaded from ${configSource}: ${this.config.workspaceName}`
+        `✅ Config loaded from ${this.configPath}: ${this.config.workspaceName}`
       );
     } catch (err) {
-      console.error(`❌ Failed to parse config: ${err}`);
+      console.error(
+        `❌ Failed to load config from ${this.configPath}: ${err}`
+      );
       throw err;
     }
   }
@@ -105,7 +179,7 @@ export class WorkspaceManager {
    * 读取 SOUL.md
    */
   async readSOUL(): Promise<string> {
-    const soulPath = path.join(this.workspaceDir, "SOUL.md");
+    const soulPath = path.join(this.actualWorkspaceDir, "SOUL.md");
     return await fs.readFile(soulPath, "utf-8");
   }
 
@@ -113,7 +187,7 @@ export class WorkspaceManager {
    * 读取 AGENTS.md
    */
   async readAGENTS(): Promise<string> {
-    const agentsPath = path.join(this.workspaceDir, "AGENTS.md");
+    const agentsPath = path.join(this.actualWorkspaceDir, "AGENTS.md");
     return await fs.readFile(agentsPath, "utf-8");
   }
 
@@ -122,6 +196,13 @@ export class WorkspaceManager {
    */
   getSessionDir(): string {
     return this.sessionDir;
+  }
+
+  /**
+   * 获取实际工作目录路径
+   */
+  getWorkspaceDir(): string {
+    return this.actualWorkspaceDir;
   }
 
   /**
@@ -137,37 +218,5 @@ export class WorkspaceManager {
    */
   getSessionPath(userId: string, sessionId: string): string {
     return path.join(this.sessionDir, `${userId}-${sessionId}.md`);
-  }
-
-  /**
-   * 初始化用户配置文件
-   * 如果 ~/.alacbot.config.json 不存在，复制默认配置
-   */
-  async initializeUserConfig(): Promise<void> {
-    const userConfigPath = path.join(os.homedir(), ".alacbot.config.json");
-    const workspaceConfigPath = path.join(
-      this.workspaceDir,
-      "alacbot.config.json"
-    );
-
-    try {
-      // 检查用户配置是否已存在
-      await fs.access(userConfigPath);
-      console.log(`ℹ️  User config already exists: ${userConfigPath}`);
-    } catch {
-      // 用户配置不存在，从工作区复制
-      try {
-        const defaultConfig = await fs.readFile(workspaceConfigPath, "utf-8");
-        await fs.writeFile(userConfigPath, defaultConfig, "utf-8");
-        console.log(`✅ User config created: ${userConfigPath}`);
-        console.log(
-          `   Please edit this file to configure your models and API keys`
-        );
-      } catch (err) {
-        console.warn(
-          `⚠️  Could not create user config: ${err}`
-        );
-      }
-    }
   }
 }

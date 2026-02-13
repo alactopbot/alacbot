@@ -2,7 +2,9 @@
   "workspaceName": "alacbot",
   "version": "1.0.0",
   "description": "Multi-Agent AI System - Pi-Mono Compatible Configuration",
-  "_comment": "This is a template config. Copy to ~/.alacbot.config.json and customize your API keys",
+  "workspace": "~/alacbot",
+  "_workspace_comment": "工作目录路径。默认为 ~/alacbot。修改此字段可切换工作目录，重启应用时会自动初始化新工作目录。支持 ~ 路径扩展。",
+  "_comment": "This is a template config. Customize your API keys and workspace location",
   "storage": {
     "type": "markdown",
     "sessionDir": "./sessions",

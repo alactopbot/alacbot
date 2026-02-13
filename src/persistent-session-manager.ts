@@ -34,7 +34,6 @@ export class PersistentSessionManager extends SessionManager {
   async save(): Promise<void> {
     const markdown = this.generateMarkdown();
     await fs.writeFile(this.sessionPath, markdown, "utf-8");
-    console.log(`💾 Session saved: ${this.sessionPath}`);
   }
 
   /**
